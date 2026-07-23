@@ -49,9 +49,9 @@ The pipeline is built in three layered SQL files, run in order:
 
 ## What I'd do next with more time
 
-- Investigate the O1019 pair (I5042/I5043) with the source team directly —
-  same order and product showing both a zero-quantity and a negative-price
-  line strongly suggests a correction/reversal event that wasn't logged
+- Investigate the O1019 pair (I5042/I5043) with the source team directly.
+  The same order and product show both a zero-quantity and a negative-price
+  line which strongly suggests a correction/reversal event that wasn't logged
   correctly, rather than two independent errors.
 - Add automated tests asserting one current row per order, no negative
   revenue in aggregates, and referential integrity between `order_items` and
@@ -64,9 +64,9 @@ The pipeline is built in three layered SQL files, run in order:
 
 Used Claude to help design and debug the SQL (CDC current-state pattern,
 mixed-timestamp parsing, DQ flagging structure) and to troubleshoot local
-DuckDB/Python setup issues. One thing I checked and corrected: an early
+DuckDB/Python setup issues. One thing I checked and corrected was an early
 version of the revenue query silently dropped the 3 orders missing create
-events instead of surfacing them as a DQ finding — I caught this by
+events instead of surfacing them as a DQ finding. I caught this by
 explicitly checking `created_ts IS NULL` before trusting the final numbers,
 which is what led to documenting it as an issue above rather than letting it
 pass unnoticed.
