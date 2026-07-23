@@ -6,6 +6,7 @@
 <title>Order Reconstruction Pipeline — Interactive Demo</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   :root {
     --bg: white;
@@ -367,6 +368,14 @@
       <div class="block-body"><div id="revenueTable"></div></div>
     </section>
 
+    <p class="stage-label">05 · Revenue trend by store</p>
+    <section class="block">
+      <div class="block-header">
+        <span class="block-title">Daily revenue per store</span>
+      </div>
+      <div class="block-body"><canvas id="revenueTrend"></canvas></div>
+    </section>
+
   </div>
 
   <div class="footer-note">
@@ -379,6 +388,7 @@
 </div>
 
 <script>
+let revenueChart = null;
 const REQUIRED = ["order_events", "order_items", "products", "stores"];
 const files = {}; // key -> { rows: [...] }
 
@@ -688,7 +698,44 @@ async function runPipeline() {
       LEFT JOIN top_cat t ON r.store_id = t.store_id
       ORDER BY r.total_net_revenue DESC;
     `);
-    renderTable('revenueTable', revRes, { moneyCols: [2, 4] });
+  const trendRes = db.exec(`
+    WITH may_completed AS (
+        SELECT order_id, store_id, created_ts
+        FROM current_orders_view
+        WHERE order_status = 'completed'
+        AND created_ts >= '2024-05-01'
+        AND created_ts < '2024-06-01'
+    ),
+    line_level AS (
+        SELECT
+        o.store_id,
+        DATE(o.created_ts) AS revenue_date,
+        i.net_line_revenue
+        FROM may_completed o
+        JOIN clean_items_view i
+        ON o.order_id = i.order_id
+        WHERE i.include_in_revenue = 1
+    )
+    SELECT
+        revenue_date,
+        s.store_name,
+        ROUND(SUM(net_line_revenue), 2) AS revenue
+    FROM line_level
+    JOIN stores s
+        ON line_level.store_id = s.store_id
+    GROUP BY
+        revenue_date,
+        s.store_name
+    ORDER BY
+        revenue_date,
+        s.store_name;
+    `);
+
+    renderTable('revenueTable', revRes, {
+        moneyCols: [2,4]
+    });
+
+    renderRevenueTrend(trendRes);
 
     statusLine.textContent = 'done.';
     resultsEl.classList.add('visible');
@@ -701,7 +748,9 @@ async function runPipeline() {
   } finally {
     runBtn.disabled = false;
   }
+
 }
+
 
 function renderDQ(dqRes, unparsedTs, noCreateRes) {
   const row = dqRes[0] ? dqRes[0].values[0] : [0,0,0,0,0,0,0];
@@ -764,6 +813,63 @@ function renderTable(targetId, execResult, opts = {}) {
   html += '</tbody></table>';
   target.innerHTML = html;
 }
+
+function renderRevenueTrend(result) {
+
+    if (!result.length) return;
+
+    const rows = result[0].values.map(r => ({
+        date: r[0],
+        store: r[1],
+        revenue: Number(r[2])
+    }));
+
+    const labels = [...new Set(rows.map(r => r.date))];
+    const stores = [...new Set(rows.map(r => r.store))];
+
+    const datasets = stores.map(store => ({
+        label: store,
+        data: labels.map(date => {
+            const row = rows.find(r =>
+                r.store === store &&
+                r.date === date
+            );
+            return row ? row.revenue : 0;
+        }),
+        tension: 0.3
+    }));
+
+    if (revenueChart) {
+        revenueChart.destroy();
+    }
+
+    revenueChart = new Chart(
+        document.getElementById("revenueTrend"),
+        {
+            type: "line",
+            data: {
+                labels,
+                datasets
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: "bottom"
+                    }
+                },
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: v => "$" + v.toLocaleString()
+                        }
+                    }
+                }
+            }
+        }
+    );
+}
+
 </script>
 </body>
 </html>
