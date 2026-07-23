@@ -2,7 +2,8 @@
 
 ## How to run
 Requires DuckDB (`pip install duckdb`).
-See `sql/` for queries, run in numbered order.
+
+python3 run_pipeline.py
 
 ## Structure
 - `data/` — provided CSVs (unmodified)
