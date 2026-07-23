@@ -1,4 +1,4 @@
-# Answers — May 2024 Revenue
+# Answers: May 2024 Revenue
 
 ## (a) Total completed net revenue per store
 
