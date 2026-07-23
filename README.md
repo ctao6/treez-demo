@@ -1,10 +1,13 @@
 # Treez Data Platform Take-Home
 
 ## How to run
+
 Web:
-Visit site link:
+
+Visit site link: https://ctao6.github.io/treez-demo/
 
 Local:
+
 Requires DuckDB (`pip install duckdb`).
 
 python3 run_pipeline.py
@@ -18,4 +21,4 @@ python3 run_pipeline.py
 - `SCALE.md` — production/incremental-processing approach
 
 ## Status
-🚧 In progress
+Done
