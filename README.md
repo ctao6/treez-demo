@@ -5,6 +5,7 @@
 Web:
 
 Visit site link: https://ctao6.github.io/treez-demo/
+
 Note that the site contains a time series of May revenue by store, which is not included in the local pipeline.
 
 Local:
