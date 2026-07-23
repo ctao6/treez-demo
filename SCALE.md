@@ -23,7 +23,7 @@ last run, so we can use a different approach to merge in new data.
 
 4. **Sort the raw data by when it arrived:** Each run only has to
    look at a recent chunk of new events, not comb through the entire
-   history every time — while the current-orders table itself stays
+   history every time. The current-orders table itself stays
    organized by order ID, so looking up and updating individual orders is
    fast.
 
