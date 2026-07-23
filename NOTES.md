@@ -58,6 +58,14 @@ The pipeline is built in three layered SQL files, run in order:
   views/tables rather than ad hoc CTEs, so downstream consumers don't need to
   re-run the full transformation chain each time.
 
+## Stretch: Additional May Revenue Time Series Insight
+
+I thought a visualization would be helpful to contextualize revenue difference
+across stores in the month of May. Due to the insight being a time series, I
+included it as a feature in my web demo, and it is not reflected in the local 
+sql sequence reflected by the python pipeline. Access the webpage from this link: https://ctao6.github.io/treez-demo/
+
+
 ## AI tools used
 
 Used Claude to help design and debug the SQL (CDC current-state pattern,
