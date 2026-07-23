@@ -17,10 +17,9 @@ The pipeline is built in three layered SQL files, run in order:
 
 ## Key assumptions
 
-- **"Line items" (task 2) refers to `order_items.csv`** specifically — the file
-  whose schema (one row per product within an order) matches the standard
-  meaning of the term. Issues in `products.csv`/`stores.csv` are noted only
-  where they surfaced via joins.
+- **"Line items" (task 2) refers to `order_items.csv`** specifically, since the file's
+  schema matches the standard meaning of the term. Issues in `products.csv`/`stores.csv`
+  are noted only where they surfaced via joins.
 - **Deleted orders are kept, not dropped**, in current-state reconstruction.
   Their `order_status` is overridden to `'deleted'` so the order remains
   visible in the current-state table.
