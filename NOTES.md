@@ -21,10 +21,9 @@ The pipeline is built in three layered SQL files, run in order:
   whose schema (one row per product within an order) matches the standard
   meaning of the term. Issues in `products.csv`/`stores.csv` are noted only
   where they surfaced via joins.
-- **Deleted orders are kept, not dropped**, in current-state reconstruction —
-  their `order_status` is overridden to `'deleted'` so the order remains
-  visible in the current-state table (an audit-preserving choice over silent
-  deletion).
+- **Deleted orders are kept, not dropped**, in current-state reconstruction.
+  Their `order_status` is overridden to `'deleted'` so the order remains
+  visible in the current-state table.
 - **`m/d/y` date ordering** in mixed-format timestamps is taken as given per
   the assignment's stated source-system convention, not inferred from the data
   (many values, e.g. `5/3/2024`, are inherently ambiguous as day/month).
@@ -42,10 +41,10 @@ The pipeline is built in three layered SQL files, run in order:
 | `unit_price` stored as string with inconsistent `$` prefix | `order_items` | most rows | Stripped `$`/commas, cast to `DOUBLE` |
 | `discount_amount` blank/NULL | `order_items` | most rows | Treated as `0` (no discount applied), not missing data |
 | `quantity = 0` | `order_items` (I5042) | 1 | Excluded from revenue via `include_in_revenue` flag; row kept for audit |
-| Negative `unit_price` | `order_items` (I5043) | 1 | Excluded from revenue; same order/product as I5042 — flagged as a pattern worth upstream investigation, not silently "fixed" |
+| Negative `unit_price` | `order_items` (I5043) | 1 | Excluded from revenue; same order/product as I5042. This was flagged as a pattern worth upstream investigation |
 | `discount_amount` > line total | `order_items` (I5043) | 1 | Follows directly from the negative price above; same handling |
 | Unrecognized `product_id` (`P999`) | `order_items` (I5530) | 1 | Kept in store totals, excluded from category breakdown |
-| Orders with no create event (`op='c'`) in the log | `order_events` (O1026, O1027, O1028) | 3 | Excluded from month-based reporting — create month is undeterminable; flagged for upstream investigation |
+| Orders with no create event (`op='c'`) in the log | `order_events` (O1026, O1027, O1028) | 3 | Excluded from month-based reporting since create month is undeterminable; flagged for upstream investigation |
 
 ## What I'd do next with more time
 
