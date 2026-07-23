@@ -9,18 +9,18 @@
 <style>
   :root {
     --bg: white;
-    --bg-panel: #112005;
-    --bg-panel-raised: #142639;
-    --border: #22374D;
-    --border-soft: #1A2C40;
-    --text: #E7EEF5;
-    --text-dim: #8CA3B8;
-    --text-faint: #5B7086;
+    --bg-panel: #B5DF85;
+    --bg-panel-raised: #112005;
+    --border: #7f9fc1;
+    --border-soft: rgb(49, 67, 89);
+    --text: #000000;
+    --text-dim: #112005;
+    --text-faint: #B5DF85;
     --accent: #B5DF85;
     --accent-dim: #2C8577;
-    --warn: #F5B860;
-    --bad: #F0806A;
-    --good: #7FD99A;
+    --warn: #e29932;
+    --bad: #c33316;
+    --good: #269246;
     --mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
@@ -91,7 +91,7 @@
     font-size: 11px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--text-faint);
+    color: var(--text);
     margin: 0 0 14px;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--border-soft);
@@ -123,17 +123,16 @@
     justify-content: center;
     gap: 6px;
   }
-  .dropzone:hover { border-color: var(--accent-dim); background: var(--bg-panel-raised); }
   .dropzone.dragover { border-color: var(--accent); background: rgba(94,234,212,0.06); transform: scale(1.015); }
   .dropzone.loaded { border-style: solid; border-color: var(--good); background: rgba(127,217,154,0.06); }
   .dropzone.error { border-style: solid; border-color: var(--bad); background: rgba(240,128,106,0.06); }
 
-  .dz-icon { font-family: var(--mono); font-size: 18px; color: var(--text-faint); }
+  .dz-icon { font-family: var(--mono); font-size: 18px; color: var(--text-dim); }
   .dropzone.loaded .dz-icon { color: var(--good); }
   .dropzone.error .dz-icon { color: var(--bad); }
 
-  .dz-name { font-family: var(--mono); font-size: 12.5px; color: var(--text); font-weight: 500; }
-  .dz-status { font-size: 11px; color: var(--text-faint); }
+  .dz-name { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); font-weight: 500; }
+  .dz-status { font-size: 11px; color: var(--text-dim); }
   .dropzone.loaded .dz-status { color: var(--good); }
   .dropzone.error .dz-status { color: var(--bad); }
 
@@ -151,7 +150,7 @@
     font-weight: 600;
     font-size: 14.5px;
     background: var(--accent);
-    color: #06201C;
+    color: var(--text-dim);
     border: none;
     padding: 13px 26px;
     border-radius: 8px;
@@ -169,7 +168,7 @@
   button.reset {
     font-family: var(--mono);
     font-size: 12.5px;
-    background: transparent;
+    background: var(--bg-panel-raised);
     color: var(--text-faint);
     border: 1px solid var(--border-soft);
     padding: 12px 16px;
@@ -177,9 +176,9 @@
     cursor: pointer;
     transition: color 0.15s ease, border-color 0.15s ease;
   }
-  button.reset:hover { color: var(--text); border-color: var(--border); }
+  button.reset:hover { color: var(--text-dim); background: var(--bg-panel); border-color: var(--border); }
 
-  .run-hint { font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
+  .run-hint { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
 
   .results { display: none; }
   .results.visible { display: block; }
@@ -247,10 +246,10 @@
 
   .dq-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 1px;
     background: var(--border-soft);
-  }
+    }
   .dq-cell {
     background: var(--bg-panel);
     padding: 16px 18px;
@@ -282,7 +281,7 @@
     padding-top: 24px;
     border-top: 1px solid var(--border-soft);
     font-size: 12.5px;
-    color: var(--text-faint);
+    color: var(--text);
     line-height: 1.7;
   }
   .footer-note a { color: var(--accent); text-decoration: none; }
@@ -742,9 +741,23 @@ function renderTable(targetId, execResult, opts = {}) {
   values.forEach(row => {
     html += '<tr>';
     row.forEach((cell, i) => {
-      const isMoney = moneyCols.includes(i + 1);
-      const display = cell === null ? '—' : (isMoney ? `$${Number(cell).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}` : cell);
-      html += `<td class="${isMoney ? 'num' : ''}">${display}</td>`;
+        const isMoney = moneyCols.includes(i);
+        let display;
+        if (cell === null) {
+            display = "—";
+        } else if (isMoney) {
+            const n = Number(cell);
+            display = Number.isFinite(n)
+                ? `$${n.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                })}`
+                : "—";
+        } else {
+            display = cell;
+        }
+
+        html += `<td class="${isMoney ? 'num' : ''}">${display}</td>`;
     });
     html += '</tr>';
   });
