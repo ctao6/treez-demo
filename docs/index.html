@@ -206,6 +206,22 @@
 
   .block-body { padding: 4px 0 6px; overflow-x: auto; }
 
+  .chart-container {
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .chart-wrapper {
+    width: 100%;
+    max-width: 1300px;   /* adjust to taste */
+  }
+
+  .chart-wrapper canvas {
+    width: 100% !important;
+    height: 500px !important;
+  }
+
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th {
     font-family: var(--mono);
@@ -372,7 +388,11 @@
       <div class="block-header">
         <span class="block-title">Daily revenue per store</span>
       </div>
-      <div class="block-body"><canvas id="revenueTrend"></canvas></div>
+      <div class="block-body chart-container">
+        <div class="chart-wrapper">
+            <canvas id="revenueTrend"></canvas>
+        </div>
+      </div>
     </section>
 
   </div>
