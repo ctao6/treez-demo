@@ -1,5 +1,5 @@
 
-# Notes — Approach, Assumptions, and Data Quality
+# Notes: Approach, Assumptions, and Data Quality
 
 ## Approach
 
