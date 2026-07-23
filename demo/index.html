@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Reconstruction Pipeline — Interactive Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --bg: white;
+    --bg-panel: #112005;
+    --bg-panel-raised: #142639;
+    --border: #22374D;
+    --border-soft: #1A2C40;
+    --text: #E7EEF5;
+    --text-dim: #8CA3B8;
+    --text-faint: #5B7086;
+    --accent: #B5DF85;
+    --accent-dim: #2C8577;
+    --warn: #F5B860;
+    --bad: #F0806A;
+    --good: #7FD99A;
+    --mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(94,234,212,0.07), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    padding: 48px 24px 80px;
+    min-height: 100vh;
+  }
+
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  h1 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    line-height: 1.25;
+  }
+
+  .sub {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 640px;
+    margin: 0 0 40px;
+  }
+  .sub code {
+    font-family: var(--mono);
+    background: var(--bg-panel-raised);
+    border: 1px solid var(--border-soft);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  .stage-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin: 0 0 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .dropgrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 720px) {
+    .dropgrid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    background: var(--bg-panel);
+    padding: 18px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+    position: relative;
+    min-height: 108px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .dropzone:hover { border-color: var(--accent-dim); background: var(--bg-panel-raised); }
+  .dropzone.dragover { border-color: var(--accent); background: rgba(94,234,212,0.06); transform: scale(1.015); }
+  .dropzone.loaded { border-style: solid; border-color: var(--good); background: rgba(127,217,154,0.06); }
+  .dropzone.error { border-style: solid; border-color: var(--bad); background: rgba(240,128,106,0.06); }
+
+  .dz-icon { font-family: var(--mono); font-size: 18px; color: var(--text-faint); }
+  .dropzone.loaded .dz-icon { color: var(--good); }
+  .dropzone.error .dz-icon { color: var(--bad); }
+
+  .dz-name { font-family: var(--mono); font-size: 12.5px; color: var(--text); font-weight: 500; }
+  .dz-status { font-size: 11px; color: var(--text-faint); }
+  .dropzone.loaded .dz-status { color: var(--good); }
+  .dropzone.error .dz-status { color: var(--bad); }
+
+  input[type=file] { display: none; }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 44px;
+  }
+
+  button.run {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14.5px;
+    background: var(--accent);
+    color: #06201C;
+    border: none;
+    padding: 13px 26px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+  }
+  button.run:hover:not(:disabled) { filter: brightness(1.08); }
+  button.run:active:not(:disabled) { transform: scale(0.98); }
+  button.run:disabled {
+    background: var(--bg-panel-raised);
+    color: var(--text-faint);
+    cursor: not-allowed;
+  }
+
+  button.reset {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: transparent;
+    color: var(--text-faint);
+    border: 1px solid var(--border-soft);
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  button.reset:hover { color: var(--text); border-color: var(--border); }
+
+  .run-hint { font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
+
+  .results { display: none; }
+  .results.visible { display: block; }
+
+  section.block {
+    margin-bottom: 36px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--bg-panel);
+    overflow: hidden;
+  }
+
+  .block-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .block-title { font-weight: 600; font-size: 15px; }
+  .block-meta { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); }
+
+  .block-body { padding: 4px 0 6px; overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    text-align: left;
+    padding: 10px 20px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--text);
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  tr:hover td { background: rgba(255,255,255,0.015); }
+
+  .num { text-align: right; }
+  .pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(240,128,106,0.12);
+    color: var(--bad);
+    border: 1px solid rgba(240,128,106,0.3);
+  }
+  .pill.ok {
+    background: rgba(127,217,154,0.1);
+    color: var(--good);
+    border-color: rgba(127,217,154,0.25);
+  }
+
+  .dq-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border-soft);
+  }
+  .dq-cell {
+    background: var(--bg-panel);
+    padding: 16px 18px;
+  }
+  .dq-num { font-family: var(--mono); font-size: 22px; font-weight: 600; }
+  .dq-num.zero { color: var(--good); }
+  .dq-num.nonzero { color: var(--warn); }
+  .dq-label { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; }
+
+  .footnote {
+    padding: 14px 20px;
+    font-size: 12.5px;
+    color: var(--text-faint);
+    line-height: 1.6;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .status-line {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: -12px 0 28px;
+    min-height: 18px;
+  }
+  .status-line.err { color: var(--bad); }
+
+  .footer-note {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 12.5px;
+    color: var(--text-faint);
+    line-height: 1.7;
+  }
+  .footer-note a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Order Reconstruction Pipeline</h1>
+  <p class="sub">
+    Drop the four source CSVs below. This runs the same logic as
+    <code>01_current_orders.sql</code>, <code>02_clean_order_items.sql</code>,
+    and <code>03_may_2024_revenue.sql</code> — reformatted for SQLite — entirely
+    client-side via SQL.js (SQLite compiled to WebAssembly).
+  </p>
+
+  <p class="stage-label">01 · Load source files</p>
+
+  <div class="dropgrid" id="dropgrid">
+    <div class="dropzone" data-key="order_events">
+      <div class="dz-icon">⬒</div>
+      <div class="dz-name">order_events.csv</div>
+      <div class="dz-status">drop or click</div>
+      <input type="file" accept=".csv" />
+    </div>
+    <div class="dropzone" data-key="order_items">
+      <div class="dz-icon">⬒</div>
+      <div class="dz-name">order_items.csv</div>
+      <div class="dz-status">drop or click</div>
+      <input type="file" accept=".csv" />
+    </div>
+    <div class="dropzone" data-key="products">
+      <div class="dz-icon">⬒</div>
+      <div class="dz-name">products.csv</div>
+      <div class="dz-status">drop or click</div>
+      <input type="file" accept=".csv" />
+    </div>
+    <div class="dropzone" data-key="stores">
+      <div class="dz-icon">⬒</div>
+      <div class="dz-name">stores.csv</div>
+      <div class="dz-status">drop or click</div>
+      <input type="file" accept=".csv" />
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="run" id="runBtn" disabled>Run pipeline</button>
+    <button class="reset" id="resetBtn">Reset</button>
+    <span class="run-hint" id="runHint">waiting for 4 files…</span>
+  </div>
+
+  <div class="status-line" id="statusLine"></div>
+
+  <div class="results" id="results">
+
+    <p class="stage-label">02 · Data-quality findings</p>
+    <section class="block">
+      <div class="block-body">
+        <div class="dq-grid" id="dqGrid"></div>
+      </div>
+      <div class="footnote">
+        Rows aren't deleted — each is flagged and either included or excluded from
+        revenue via <code style="color:var(--accent)">include_in_revenue</code>.
+        Unknown products count toward store totals but not category totals.
+      </div>
+    </section>
+
+    <p class="stage-label">03 · Current order state (sample)</p>
+    <section class="block">
+      <div class="block-header">
+        <span class="block-title">Reconstructed current orders</span>
+        <span class="block-meta" id="ordersMeta"></span>
+      </div>
+      <div class="block-body"><div id="ordersTable"></div></div>
+    </section>
+
+    <p class="stage-label">04 · May 2024 completed net revenue</p>
+    <section class="block">
+      <div class="block-header">
+        <span class="block-title">By store, with top category</span>
+        <span class="block-meta">order belongs to the month of its create event</span>
+      </div>
+      <div class="block-body"><div id="revenueTable"></div></div>
+    </section>
+
+  </div>
+
+  <div class="footer-note">
+    Timestamps are normalized in JavaScript before insertion (SQLite has no
+    <code>TRY_STRPTIME</code>) — everything else runs as SQL, mirroring the
+    submitted pipeline. See the repo's <code>sql/</code> folder and
+    <code>NOTES.md</code> for the full write-up and assumptions.
+  </div>
+
+</div>
+
+<script>
+const REQUIRED = ["order_events", "order_items", "products", "stores"];
+const files = {}; // key -> { rows: [...] }
+
+const dropgrid = document.getElementById('dropgrid');
+const runBtn = document.getElementById('runBtn');
+const resetBtn = document.getElementById('resetBtn');
+const runHint = document.getElementById('runHint');
+const statusLine = document.getElementById('statusLine');
+const resultsEl = document.getElementById('results');
+
+function keyFromFilename(name) {
+  const base = name.toLowerCase().replace('.csv', '');
+  return REQUIRED.find(k => base.includes(k)) || null;
+}
+
+function setZoneState(zone, state, message) {
+  zone.classList.remove('loaded', 'error', 'dragover');
+  if (state) zone.classList.add(state);
+  const statusEl = zone.querySelector('.dz-status');
+  const iconEl = zone.querySelector('.dz-icon');
+  if (message) statusEl.textContent = message;
+  if (state === 'loaded') iconEl.textContent = '✓';
+  else if (state === 'error') iconEl.textContent = '✕';
+  else iconEl.textContent = '⬒';
+}
+
+function updateRunState() {
+  const loadedCount = Object.keys(files).length;
+  runBtn.disabled = loadedCount < 4;
+  runHint.textContent = loadedCount < 4
+    ? `${loadedCount}/4 files loaded…`
+    : 'ready — click run pipeline';
+}
+
+function handleFile(zone, file) {
+  const declaredKey = zone.dataset.key;
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: (res) => {
+      if (!res.data.length) {
+        setZoneState(zone, 'error', 'empty file');
+        return;
+      }
+      files[declaredKey] = res.data;
+      setZoneState(zone, 'loaded', `${res.data.length.toLocaleString()} rows`);
+      updateRunState();
+    },
+    error: () => setZoneState(zone, 'error', 'parse failed')
+  });
+}
+
+document.querySelectorAll('.dropzone').forEach(zone => {
+  const input = zone.querySelector('input[type=file]');
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleFile(zone, e.target.files[0]);
+  });
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    const detected = keyFromFilename(f.name);
+    if (detected && detected !== zone.dataset.key) {
+      // dropped in the wrong slot but we recognize it — route it correctly
+      const correctZone = document.querySelector(`.dropzone[data-key="${detected}"]`);
+      if (correctZone) { handleFile(correctZone, f); return; }
+    }
+    handleFile(zone, f);
+  });
+});
+
+resetBtn.addEventListener('click', () => {
+  Object.keys(files).forEach(k => delete files[k]);
+  document.querySelectorAll('.dropzone').forEach(z => setZoneState(z, null, 'drop or click'));
+  resultsEl.classList.remove('visible');
+  statusLine.textContent = '';
+  statusLine.classList.remove('err');
+  updateRunState();
+});
+
+// ---------- timestamp / value normalization ----------
+function pad(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+
+function normalizeTs(raw) {
+  if (!raw) return null;
+  raw = String(raw).trim();
+  let m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])} ${pad(m[4])}:${m[5]}:${pad(m[6]||'00')}`;
+  m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) return `${m[3]}-${pad(m[1])}-${pad(m[2])} ${pad(m[4])}:${m[5]}:${pad(m[6]||'00')}`;
+  m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])} 00:00:00`;
+  m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${pad(m[1])}-${pad(m[2])} 00:00:00`;
+  return null;
+}
+
+function cleanPrice(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const cleaned = String(raw).replace(/\$/g, '').replace(/,/g, '').trim();
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? null : n;
+}
+
+function cleanNum(raw, fallback) {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const n = parseFloat(raw);
+  return isNaN(n) ? fallback : n;
+}
+
+// ---------- run pipeline ----------
+runBtn.addEventListener('click', runPipeline);
+
+async function runPipeline() {
+  runBtn.disabled = true;
+  statusLine.classList.remove('err');
+  statusLine.textContent = 'initializing SQLite (wasm)…';
+  resultsEl.classList.remove('visible');
+
+  try {
+    const SQL = await initSqlJs({
+      locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}`
+    });
+    const db = new SQL.Database();
+
+    statusLine.textContent = 'creating tables…';
+
+    db.run(`
+      CREATE TABLE order_events (
+        order_id TEXT, store_id TEXT, customer_id TEXT, event_seq INTEGER,
+        event_ts TEXT, op TEXT, order_status TEXT
+      );
+      CREATE TABLE order_items (
+        order_item_id TEXT, order_id TEXT, product_id TEXT,
+        quantity INTEGER, unit_price REAL, discount_amount REAL
+      );
+      CREATE TABLE products (
+        product_id TEXT, product_name TEXT, category TEXT,
+        base_price REAL, is_active TEXT
+      );
+      CREATE TABLE stores (
+        store_id TEXT, store_name TEXT, state TEXT, tenant_id TEXT
+      );
+    `);
+
+    statusLine.textContent = 'loading order_events…';
+    let stmt = db.prepare(`INSERT INTO order_events VALUES (?,?,?,?,?,?,?)`);
+    let unparsedTs = 0;
+    for (const r of files.order_events) {
+      const ts = normalizeTs(r.event_ts);
+      if (r.event_ts && !ts) unparsedTs++;
+      stmt.run([
+        r.order_id, r.store_id,
+        (r.customer_id || '').trim() === '' ? null : r.customer_id,
+        parseInt(r.event_seq, 10) || null,
+        ts,
+        (r.op || '').trim().toLowerCase(),
+        (r.order_status || '').trim().toLowerCase()
+      ]);
+    }
+    stmt.free();
+
+    statusLine.textContent = 'loading order_items…';
+    stmt = db.prepare(`INSERT INTO order_items VALUES (?,?,?,?,?,?)`);
+    for (const r of files.order_items) {
+      stmt.run([
+        r.order_item_id, r.order_id, r.product_id,
+        cleanNum(r.quantity, 0),
+        cleanPrice(r.unit_price),
+        cleanNum(r.discount_amount, 0)
+      ]);
+    }
+    stmt.free();
+
+    statusLine.textContent = 'loading products…';
+    stmt = db.prepare(`INSERT INTO products VALUES (?,?,?,?,?)`);
+    for (const r of files.products) {
+      stmt.run([r.product_id, r.product_name, r.category, cleanNum(r.base_price, null), r.is_active]);
+    }
+    stmt.free();
+
+    statusLine.textContent = 'loading stores…';
+    stmt = db.prepare(`INSERT INTO stores VALUES (?,?,?,?)`);
+    for (const r of files.stores) {
+      stmt.run([r.store_id, r.store_name, r.state, r.tenant_id]);
+    }
+    stmt.free();
+
+    statusLine.textContent = 'reconstructing current order state…';
+
+    db.run(`
+      CREATE VIEW current_orders_view AS
+      WITH ranked AS (
+        SELECT *,
+          ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY event_seq DESC) AS rn,
+          MIN(CASE WHEN op = 'c' THEN event_ts END) OVER (PARTITION BY order_id) AS created_ts
+        FROM order_events
+      )
+      SELECT
+        order_id, store_id, customer_id,
+        event_seq AS latest_event_seq, event_ts AS latest_event_ts, op AS latest_op,
+        CASE WHEN op = 'd' THEN 'deleted' ELSE order_status END AS order_status,
+        created_ts
+      FROM ranked
+      WHERE rn = 1;
+    `);
+
+    statusLine.textContent = 'cleaning line items…';
+
+    db.run(`
+      CREATE VIEW clean_items_view AS
+      WITH flagged AS (
+        SELECT
+          order_item_id, order_id, product_id, quantity, unit_price, discount_amount,
+          (quantity * unit_price - discount_amount) AS net_line_revenue,
+          CASE WHEN quantity <= 0 THEN 1 ELSE 0 END AS flag_bad_quantity,
+          CASE WHEN unit_price < 0 THEN 1 ELSE 0 END AS flag_negative_price,
+          CASE WHEN discount_amount < 0 THEN 1 ELSE 0 END AS flag_negative_discount,
+          CASE WHEN discount_amount > (quantity * unit_price) THEN 1 ELSE 0 END AS flag_discount_exceeds
+        FROM order_items
+      ),
+      joined AS (
+        SELECT f.*,
+          CASE WHEN o.order_id IS NULL THEN 1 ELSE 0 END AS flag_orphaned_order_id,
+          CASE WHEN p.product_id IS NULL THEN 1 ELSE 0 END AS flag_unknown_product
+        FROM flagged f
+        LEFT JOIN (SELECT DISTINCT order_id FROM order_events) o ON f.order_id = o.order_id
+        LEFT JOIN products p ON f.product_id = p.product_id
+      )
+      SELECT *,
+        CASE WHEN flag_bad_quantity = 1 OR flag_negative_price = 1 OR flag_orphaned_order_id = 1
+          THEN 0 ELSE 1 END AS include_in_revenue
+      FROM joined;
+    `);
+
+    // ---- DQ summary ----
+    const dqRes = db.exec(`
+      SELECT
+        SUM(flag_bad_quantity) AS bad_qty,
+        SUM(flag_negative_price) AS neg_price,
+        SUM(flag_negative_discount) AS neg_discount,
+        SUM(flag_discount_exceeds) AS disc_exceeds,
+        SUM(flag_orphaned_order_id) AS orphaned,
+        SUM(flag_unknown_product) AS unknown_product,
+        COUNT(*) AS total
+      FROM clean_items_view;
+    `);
+    const noCreateRes = db.exec(`SELECT COUNT(*) FROM current_orders_view WHERE created_ts IS NULL;`);
+
+    renderDQ(dqRes, unparsedTs, noCreateRes);
+
+    // ---- current orders sample ----
+    const ordersRes = db.exec(`
+      SELECT order_id, store_id, customer_id, order_status, created_ts, latest_event_ts
+      FROM current_orders_view
+      ORDER BY order_id
+      LIMIT 12;
+    `);
+    document.getElementById('ordersMeta').textContent =
+      `showing 12 of ${files.order_events ? new Set(files.order_events.map(r=>r.order_id)).size : '?'} orders`;
+    renderTable('ordersTable', ordersRes);
+
+    // ---- revenue ----
+    statusLine.textContent = 'computing May 2024 revenue…';
+
+    const revRes = db.exec(`
+      WITH may_completed AS (
+        SELECT order_id, store_id
+        FROM current_orders_view
+        WHERE order_status = 'completed'
+          AND created_ts >= '2024-05-01'
+          AND created_ts < '2024-06-01'
+      ),
+      line_level AS (
+        SELECT o.store_id, i.product_id, i.net_line_revenue, i.flag_unknown_product
+        FROM may_completed o
+        JOIN clean_items_view i ON o.order_id = i.order_id
+        WHERE i.include_in_revenue = 1
+      ),
+      revenue_per_store AS (
+        SELECT s.store_name, l.store_id, ROUND(SUM(l.net_line_revenue), 2) AS total_net_revenue
+        FROM line_level l
+        JOIN stores s ON l.store_id = s.store_id
+        GROUP BY s.store_name, l.store_id
+      ),
+      category_revenue AS (
+        SELECT l.store_id, p.category, ROUND(SUM(l.net_line_revenue), 2) AS category_net_revenue
+        FROM line_level l
+        JOIN products p ON l.product_id = p.product_id
+        WHERE l.flag_unknown_product = 0
+        GROUP BY l.store_id, p.category
+      ),
+      ranked_cat AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY store_id ORDER BY category_net_revenue DESC) AS rn
+        FROM category_revenue
+      ),
+      top_cat AS (
+        SELECT store_id, category AS top_category, category_net_revenue AS top_category_revenue
+        FROM ranked_cat WHERE rn = 1
+      )
+      SELECT r.store_name, r.store_id, r.total_net_revenue, t.top_category, t.top_category_revenue
+      FROM revenue_per_store r
+      LEFT JOIN top_cat t ON r.store_id = t.store_id
+      ORDER BY r.total_net_revenue DESC;
+    `);
+    renderTable('revenueTable', revRes, { moneyCols: [2, 4] });
+
+    statusLine.textContent = 'done.';
+    resultsEl.classList.add('visible');
+    db.close();
+
+  } catch (err) {
+    console.error(err);
+    statusLine.classList.add('err');
+    statusLine.textContent = `error: ${err.message}`;
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+function renderDQ(dqRes, unparsedTs, noCreateRes) {
+  const row = dqRes[0] ? dqRes[0].values[0] : [0,0,0,0,0,0,0];
+  const [badQty, negPrice, negDisc, discExceeds, orphaned, unknownProd, total] = row;
+  const noCreate = noCreateRes[0] ? noCreateRes[0].values[0][0] : 0;
+
+  const cells = [
+    ['Line items scanned', total, 'neutral'],
+    ['Bad quantity (≤0)', badQty, badQty > 0 ? 'nonzero' : 'zero'],
+    ['Negative price', negPrice, negPrice > 0 ? 'nonzero' : 'zero'],
+    ['Discount > line total', discExceeds, discExceeds > 0 ? 'nonzero' : 'zero'],
+    ['Orphaned order_id', orphaned, orphaned > 0 ? 'nonzero' : 'zero'],
+    ['Unknown product_id', unknownProd, unknownProd > 0 ? 'nonzero' : 'zero'],
+    ['Unparseable timestamps', unparsedTs, unparsedTs > 0 ? 'nonzero' : 'zero'],
+    ['Orders missing create event', noCreate, noCreate > 0 ? 'nonzero' : 'zero'],
+  ];
+
+  const grid = document.getElementById('dqGrid');
+  grid.innerHTML = cells.map(([label, val, cls]) => `
+    <div class="dq-cell">
+      <div class="dq-num ${cls}">${val}</div>
+      <div class="dq-label">${label}</div>
+    </div>
+  `).join('');
+}
+
+function renderTable(targetId, execResult, opts = {}) {
+  const target = document.getElementById(targetId);
+  if (!execResult[0]) { target.innerHTML = `<div class="footnote">no rows</div>`; return; }
+  const { columns, values } = execResult[0];
+  const moneyCols = opts.moneyCols || [];
+
+  let html = '<table><thead><tr>';
+  columns.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+
+  values.forEach(row => {
+    html += '<tr>';
+    row.forEach((cell, i) => {
+      const isMoney = moneyCols.includes(i + 1);
+      const display = cell === null ? '—' : (isMoney ? `$${Number(cell).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}` : cell);
+      html += `<td class="${isMoney ? 'num' : ''}">${display}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  target.innerHTML = html;
+}
+</script>
+</body>
+</html>
