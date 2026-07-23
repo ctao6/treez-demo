@@ -1,4 +1,4 @@
-# Scale — Keeping Current Orders Up to Date at Production Volume
+# Scale: Keeping Current Orders Up to Date at Production Volume
 
 Right now my approach reads the entire event log and rebuilds "current
 state" from scratch every time. That's fine for a few thousand rows, but at
